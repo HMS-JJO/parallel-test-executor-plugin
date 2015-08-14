@@ -108,7 +108,7 @@ public class ParallelTestExecutor extends Builder {
     public boolean perform(AbstractBuild<?, ?> build, Launcher launcher, BuildListener listener) throws InterruptedException, IOException {
         FilePath dir = build.getWorkspace().child("test-splits");
         dir.deleteRecursive();
-        List<List<String>> splits = findTestSplits(parallelism, build, listener);
+        List<List<String>> splits = findTestSplits(parallelism, build, listener, getNoJava());
         for (int i = 0; i < splits.size(); i++) {
             OutputStream os = dir.child("split." + i + ".txt").write();
             try {
@@ -131,7 +131,11 @@ public class ParallelTestExecutor extends Builder {
         return true;
     }
 
-    List<List<String>> findTestSplits(Parallelism parallelism, Run<?,?> build, TaskListener listener) {
+    static List<List<String>> findTestSplits(Parallelism parallelism, Run<?,?> build, TaskListener listener) {
+        return findTestSplits(parallelism, build, listener, false);
+    }
+
+    static List<List<String>> findTestSplits(Parallelism parallelism, Run<?,?> build, TaskListener listener, boolean noJava) {
         TestResult tr = findPreviousTestResult(build, listener);
         if (tr == null) {
             listener.getLogger().println("No record available, so executing everything in one place");
@@ -139,7 +143,7 @@ public class ParallelTestExecutor extends Builder {
         } else {
 
             Map<String/*fully qualified class name*/, TestClass> data = new HashMap<String, TestClass>();
-            collect(tr, data);
+            collect(tr, data, noJava);
 
             // sort in the descending order of the duration
             List<TestClass> sorted = new ArrayList<TestClass>(data.values());
@@ -187,7 +191,7 @@ public class ParallelTestExecutor extends Builder {
                 r.add(exclusions);
                 for (TestClass d : sorted) {
                     if (d.knapsack == k) continue;
-                    if(getNoJava()) {
+                    if(noJava) {
                         exclusions.add(d.getSourceFileName());
                     } else {
                         exclusions.add(d.getSourceFileName(".java"));
@@ -248,10 +252,10 @@ public class ParallelTestExecutor extends Builder {
     /**
      * Recursive visits the structure inside {@link hudson.tasks.test.TestResult}.
      */
-    private void collect(TestResult r, Map<String, TestClass> data) {
+    private static void collect(TestResult r, Map<String, TestClass> data, boolean noJava) {
         if (r instanceof ClassResult) {
             ClassResult clr = (ClassResult) r;
-            if(getNoJava()) {
+            if(noJava) {
                 for( CaseResult car : clr.getChildren() )
                 {
                     TestClass dp = new TestClass(car);
@@ -266,7 +270,7 @@ public class ParallelTestExecutor extends Builder {
         if (r instanceof TabulatedResult) {
             TabulatedResult tr = (TabulatedResult) r;
             for (TestResult child : tr.getChildren()) {
-                collect(child, data);
+                collect(child, data, noJava);
             }
         }
     }
