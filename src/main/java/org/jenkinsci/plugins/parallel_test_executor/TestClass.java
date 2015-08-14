@@ -1,5 +1,6 @@
 package org.jenkinsci.plugins.parallel_test_executor;
 
+import hudson.tasks.junit.CaseResult;
 import hudson.tasks.junit.ClassResult;
 import org.jenkinsci.plugins.parallel_test_executor.ParallelTestExecutor.Knapsack;
 
@@ -21,6 +22,11 @@ public class TestClass implements Comparable<TestClass> {
         else
             pkgName += '.';
         this.className = pkgName+cr.getName();
+        this.duration = (long)(cr.getDuration()*1000); // milliseconds is a good enough precision for us
+    }
+
+    public TestClass(CaseResult cr) {
+        this.className = cr.getName();
         this.duration = (long)(cr.getDuration()*1000);  // milliseconds is a good enough precision for us
     }
 
@@ -30,6 +36,10 @@ public class TestClass implements Comparable<TestClass> {
         if (l>0)    return -1;
         if (l<0)    return 1;
         return 0;
+    }
+
+    public String getSourceFileName() {
+        return className;
     }
 
     public String getSourceFileName(String extension) {

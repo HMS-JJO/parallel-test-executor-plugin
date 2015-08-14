@@ -8,6 +8,7 @@ import hudson.model.*;
 import hudson.plugins.parameterizedtrigger.*;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
+import hudson.tasks.junit.CaseResult;
 import hudson.tasks.junit.ClassResult;
 import hudson.tasks.junit.JUnitResultArchiver;
 import hudson.tasks.test.AbstractTestResultAction;
@@ -36,15 +37,17 @@ public class ParallelTestExecutor extends Builder {
 
     private String testJob;
     private String patternFile;
+    private boolean noJava = false;
     private String testReportFiles;
     private boolean doNotArchiveTestResults = false;
     private List<AbstractBuildParameters> parameters;
 
     @DataBoundConstructor
-    public ParallelTestExecutor(Parallelism parallelism, String testJob, String patternFile, String testReportFiles, boolean archiveTestResults, List<AbstractBuildParameters> parameters) {
+    public ParallelTestExecutor(Parallelism parallelism, String testJob, String patternFile, boolean noJava, String testReportFiles, boolean archiveTestResults, List<AbstractBuildParameters> parameters) {
         this.parallelism = parallelism;
         this.testJob = testJob;
         this.patternFile = patternFile;
+        this.noJava = noJava;
         this.testReportFiles = testReportFiles;
         this.parameters = parameters;
         this.doNotArchiveTestResults = !archiveTestResults;
@@ -60,6 +63,10 @@ public class ParallelTestExecutor extends Builder {
 
     public String getPatternFile() {
         return patternFile;
+    }
+    
+    public boolean getNoJava() {
+        return noJava;
     }
 
     public String getTestReportFiles() {
@@ -124,7 +131,7 @@ public class ParallelTestExecutor extends Builder {
         return true;
     }
 
-    static List<List<String>> findTestSplits(Parallelism parallelism, Run<?,?> build, TaskListener listener) {
+    List<List<String>> findTestSplits(Parallelism parallelism, Run<?,?> build, TaskListener listener) {
         TestResult tr = findPreviousTestResult(build, listener);
         if (tr == null) {
             listener.getLogger().println("No record available, so executing everything in one place");
@@ -180,8 +187,12 @@ public class ParallelTestExecutor extends Builder {
                 r.add(exclusions);
                 for (TestClass d : sorted) {
                     if (d.knapsack == k) continue;
-                    exclusions.add(d.getSourceFileName(".java"));
-                    exclusions.add(d.getSourceFileName(".class"));
+                    if(getNoJava()) {
+                        exclusions.add(d.getSourceFileName());
+                    } else {
+                        exclusions.add(d.getSourceFileName(".java"));
+                        exclusions.add(d.getSourceFileName(".class"));
+                    }
                 }
             }
             return r;
@@ -237,11 +248,19 @@ public class ParallelTestExecutor extends Builder {
     /**
      * Recursive visits the structure inside {@link hudson.tasks.test.TestResult}.
      */
-    static private void collect(TestResult r, Map<String, TestClass> data) {
+    private void collect(TestResult r, Map<String, TestClass> data) {
         if (r instanceof ClassResult) {
-            ClassResult cr = (ClassResult) r;
-            TestClass dp = new TestClass(cr);
-            data.put(dp.className, dp);
+            ClassResult clr = (ClassResult) r;
+            if(getNoJava()) {
+                for( CaseResult car : clr.getChildren() )
+                {
+                    TestClass dp = new TestClass(car);
+                    data.put(dp.className, dp);
+                }
+            } else {
+                TestClass dp = new TestClass(clr);
+                data.put(dp.className, dp);
+            }
             return; // no need to go deeper
         }
         if (r instanceof TabulatedResult) {

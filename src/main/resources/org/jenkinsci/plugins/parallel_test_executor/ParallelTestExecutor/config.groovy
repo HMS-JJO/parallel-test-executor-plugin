@@ -14,6 +14,9 @@ f.entry(title:"Exclusion file name in the test job", field:"patternFile") {
 f.entry(title:"Degree of parallelism", field:"parallelism") {
     f.hetero_radio(field:"parallelism", descriptors:Jenkins.instance.getDescriptorList(Parallelism.class))
 }
+f.entry(title:"Disable Java specifics", field:"noJava") {
+    f.checkbox()
+}
 f.entry(title:"Test report directory in the test job", field:"testReportFiles") {
     f.textbox()
 }
